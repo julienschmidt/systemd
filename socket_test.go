@@ -8,6 +8,7 @@ import (
 	"errors"
 	"io"
 	"io/ioutil"
+	"net"
 	"os"
 	"strconv"
 	"testing"
@@ -169,6 +170,14 @@ func TestListenWithNames(t *testing.T) {
 		t.Fatalf("unexpected number of sockets: expected 2, got %d", len(sockets))
 	}
 
+	if sockets[0].Name() != "fd3" {
+		t.Fatalf("unexpected socket name: expected fd3, got %s", sockets[0].Name())
+	}
+
+	if sockets[1].Name() != "fd4" {
+		t.Fatalf("unexpected socket name: expected fd4, got %s", sockets[1].Name())
+	}
+
 	if r.Fd() != sockets[0].Fd() || w.Fd() != sockets[1].Fd() {
 		t.Fatalf("file descriptor mismatch: %d=%d, %d=%d", r.Fd(), sockets[0].Fd(), w.Fd(), sockets[1].Fd())
 	}
@@ -242,5 +251,125 @@ func TestListenWithNamesMismatch(t *testing.T) {
 	prepareNames(3)
 	if _, err := ListenWithNames(); err == nil {
 		t.Fatal("no error when too many names were set")
+	}
+}
+
+func TestSocket(t *testing.T) {
+	r, w := prepareEnv(t, false, false, true)
+	defer cleanEnv(r, w)
+
+	s := Socket{w}
+
+	if s.Fd() != w.Fd() {
+		t.Fatalf("socket FD mismatch: expected %d, got %d", w.Fd(), s.Fd())
+	}
+
+	if s.Name() != w.Name() {
+		t.Fatalf("socket name mismatch: expected %s, got %s", w.Name(), s.Name())
+	}
+
+	if err := s.Close(); err != nil {
+		t.Fatalf("error while closing socket: %v", err)
+	}
+}
+
+func TestSocketListener(t *testing.T) {
+	l1, err := net.Listen("tcp", ":55555")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer l1.Close()
+
+	f, err := l1.(*net.TCPListener).File()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	s := newSocket(int(f.Fd()), f.Name())
+
+	if s.Fd() != f.Fd() {
+		t.Fatalf("socket FD mismatch: expected %d, got %d", f.Fd(), s.Fd())
+	}
+
+	if s.Name() != f.Name() {
+		t.Fatalf("socket name mismatch: expected %s, got %s", f.Name(), s.Name())
+	}
+
+	l2, err := s.Listener()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if err = l2.Close(); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestSocketConn(t *testing.T) {
+	l1, err := net.Listen("tcp", ":55556")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer l1.Close()
+
+	c1, err := net.Dial("tcp", ":55556")
+	if err != nil {
+		t.Fatalf(err.Error())
+	}
+
+	f, err := c1.(*net.TCPConn).File()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	s := newSocket(int(f.Fd()), f.Name())
+
+	if s.Fd() != f.Fd() {
+		t.Fatalf("socket FD mismatch: expected %d, got %d", f.Fd(), s.Fd())
+	}
+
+	if s.Name() != f.Name() {
+		t.Fatalf("socket name mismatch: expected %s, got %s", f.Name(), s.Name())
+	}
+
+	c2, err := s.Conn()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if err = c2.Close(); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestSocketPacketConn(t *testing.T) {
+	c1, err := net.ListenPacket("udp", ":55557")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer c1.Close()
+
+	f, err := c1.(*net.UDPConn).File()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	s := newSocket(int(f.Fd()), f.Name())
+
+	if s.Fd() != f.Fd() {
+		t.Fatalf("socket FD mismatch: expected %d, got %d", f.Fd(), s.Fd())
+	}
+
+	if s.Name() != f.Name() {
+		t.Fatalf("socket name mismatch: expected %s, got %s", f.Name(), s.Name())
+	}
+
+	c2, err := s.PacketConn()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if err = c2.Close(); err != nil {
+		t.Fatal(err)
 	}
 }

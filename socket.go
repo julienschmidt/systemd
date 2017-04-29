@@ -18,15 +18,16 @@ import (
 
 const fdStart = 3 // first systemd socket
 
+// Socket is the abstraction of a socket passed as a file descriptor by systemd.
 type Socket struct {
 	f *os.File
 }
 
-// Fd returns the integer Unix file descriptor referencing the open socket.
-// The file descriptor is valid only until s.Close is called or s is garbage
-// collected.
-func (s *Socket) Fd() uintptr {
-	return s.f.Fd()
+func newSocket(fd int, name string) Socket {
+	// set the close-on-exec flag for the file descriptor
+	syscall.CloseOnExec(fd)
+
+	return Socket{os.NewFile(uintptr(fd), name)}
 }
 
 // Fd returns the integer Unix file descriptor referencing the open socket.
@@ -34,6 +35,11 @@ func (s *Socket) Fd() uintptr {
 // collected.
 func (s *Socket) Fd() uintptr {
 	return s.f.Fd()
+}
+
+// Name returns the name assigned to the socket.
+func (s *Socket) Name() string {
+	return s.f.Name()
 }
 
 // Close closes the Socket, rendering it unusable for I/O.
@@ -127,22 +133,16 @@ func parseNames(n int) (names []string, err error) {
 // If no sockets have been received, an empty slice is returned.
 // If more than one socket is received, they will be passed in the same order as
 // configured in the systemd socket unit file.
-func Listen() (files []Socket, err error) {
+func Listen() (sockets []Socket, err error) {
 	n, err := parseEnv()
 	if n < 1 { // includes err != nil case
 		return
 	}
 
-	files = make([]Socket, n)
+	sockets = make([]Socket, n)
 	for i := 0; i < n; i++ {
 		fd := fdStart + i
-
-		// set the close-on-exec flag for the file descriptor
-		syscall.CloseOnExec(fd)
-
-		files[i] = Socket{
-			os.NewFile(uintptr(fd), "/proc/self/fd/"+strconv.Itoa(fd)),
-		}
+		sockets[i] = newSocket(fd, "/proc/self/fd/"+strconv.Itoa(fd))
 	}
 	return
 }
@@ -164,11 +164,7 @@ func ListenWithNames() (files []Socket, err error) {
 	files = make([]Socket, n)
 	for i := 0; i < n; i++ {
 		fd := fdStart + i
-
-		// set the close-on-exec flag for the file descriptor
-		syscall.CloseOnExec(fd)
-
-		files[i] = Socket{os.NewFile(uintptr(fd), names[i])}
+		files[i] = newSocket(fd, names[i])
 	}
 	return
 }
