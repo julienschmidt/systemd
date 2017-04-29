@@ -225,16 +225,6 @@ func TestListenWithNamesNoFDs(t *testing.T) {
 	}
 }
 
-func TestListenWithNamesNoOpen(t *testing.T) {
-	r, w := prepareEnv(t, true, true, false)
-	defer cleanEnv(r, w)
-
-	sockets, _ := ListenWithNames()
-	if checkWrite(sockets[1].File(), sockets[0].File()) == nil {
-		t.Fatal("did not fail when FDs were not opened")
-	}
-}
-
 func TestListenWithNamesMismatch(t *testing.T) {
 	r, w := prepareEnv(t, true, true, true)
 	defer cleanEnv(r, w)
