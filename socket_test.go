@@ -191,7 +191,7 @@ func TestListenWithNamesNoPID(t *testing.T) {
 	r, w := prepareEnv(t, false, true, true)
 	defer cleanEnv(r, w)
 
-	if _, err := Listen(); err == nil {
+	if _, err := ListenWithNames(); err == nil {
 		t.Fatal("did not fail when PID was not set")
 	}
 }
@@ -201,7 +201,7 @@ func TestListenWithNamesInvalidPID(t *testing.T) {
 	os.Setenv("LISTEN_PID", "Gordon")
 	defer cleanEnv(r, w)
 
-	if _, err := Listen(); err == nil {
+	if _, err := ListenWithNames(); err == nil {
 		t.Fatal("did not fail when PID was invalid")
 	}
 }
@@ -211,7 +211,7 @@ func TestListenWithNamesWrongPID(t *testing.T) {
 	os.Setenv("LISTEN_PID", "1")
 	defer cleanEnv(r, w)
 
-	if _, err := Listen(); err == nil {
+	if _, err := ListenWithNames(); err == nil {
 		t.Fatal("did not fail when PID mismatched")
 	}
 }
@@ -220,7 +220,7 @@ func TestListenWithNamesNoFDs(t *testing.T) {
 	r, w := prepareEnv(t, true, false, true)
 	defer cleanEnv(r, w)
 
-	if _, err := Listen(); err == nil {
+	if _, err := ListenWithNames(); err == nil {
 		t.Fatal("did not fail when FDs were not set")
 	}
 }
@@ -229,7 +229,7 @@ func TestListenWithNamesNoOpen(t *testing.T) {
 	r, w := prepareEnv(t, true, true, false)
 	defer cleanEnv(r, w)
 
-	sockets, _ := Listen()
+	sockets, _ := ListenWithNames()
 	if checkWrite(sockets[1].File(), sockets[0].File()) == nil {
 		t.Fatal("did not fail when FDs were not opened")
 	}
