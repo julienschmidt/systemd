@@ -1,4 +1,4 @@
-# systemd [![GoDoc](https://godoc.org/github.com/julienschmidt/systemd?status.svg)](https://godoc.org/github.com/julienschmidt/systemd)
+# systemd [![Build Status](https://travis-ci.org/julienschmidt/systemd.svg?branch=master)](https://travis-ci.org/julienschmidt/systemd) [![GoDoc](https://godoc.org/github.com/julienschmidt/systemd?status.svg)](https://godoc.org/github.com/julienschmidt/systemd)
 
 This package provides native systemd integration for Go programs.
 
