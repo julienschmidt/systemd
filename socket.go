@@ -64,6 +64,11 @@ func (s *Socket) PacketConn() (c net.PacketConn, err error) {
 	return net.FilePacketConn(s.f)
 }
 
+// Listen returns sockets passed by the service manager as part of the
+// socket-based activation logic.
+// If no sockets have been received, an empty slice is returned.
+// If more than one socket is received, they will be passed in the same order as
+// configured in the systemd socket unit file.
 func Listen() (files []Socket, err error) {
 	// TODO: named sockets
 
