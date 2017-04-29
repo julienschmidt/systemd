@@ -65,13 +65,9 @@ func checkWrite(w io.WriteCloser, r io.ReadCloser) (err error) {
 
 func TestListen(t *testing.T) {
 	r, w := prepareEnv(t, true, true, true)
-	sockets, err := Listen(false)
+	sockets, err := Listen()
 	if err != nil {
 		t.Fatal(err)
-	}
-
-	if os.Getenv("LISTEN_PID") == "" || os.Getenv("LISTEN_FDS") == "" {
-		t.Fatal("env unset when not requested")
 	}
 
 	if len(sockets) != 2 {
@@ -87,23 +83,9 @@ func TestListen(t *testing.T) {
 	}
 }
 
-func TestListenUnsetEnv(t *testing.T) {
-	r, w := prepareEnv(t, true, true, true)
-	_, err := Listen(true)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	if os.Getenv("LISTEN_PID") != "" || os.Getenv("LISTEN_FDS") != "" {
-		t.Fatal("env not unset when requested")
-	}
-	r.Close()
-	w.Close()
-}
-
 func TestListenNoPID(t *testing.T) {
 	r, w := prepareEnv(t, false, true, true)
-	_, err := Listen(false)
+	_, err := Listen()
 	r.Close()
 	w.Close()
 
@@ -114,7 +96,7 @@ func TestListenNoPID(t *testing.T) {
 
 func TestListenNoFDs(t *testing.T) {
 	r, w := prepareEnv(t, true, false, true)
-	_, err := Listen(false)
+	_, err := Listen()
 	r.Close()
 	w.Close()
 
@@ -125,7 +107,7 @@ func TestListenNoFDs(t *testing.T) {
 
 func TestListenNoOpen(t *testing.T) {
 	_, _ = prepareEnv(t, true, true, false)
-	sockets, _ := Listen(false)
+	sockets, _ := Listen()
 
 	if checkWrite(sockets[1].File(), sockets[0].File()) == nil {
 		t.Fatal("did not fail when FDs were not opened")

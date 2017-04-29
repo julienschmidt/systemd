@@ -64,17 +64,20 @@ func (s *Socket) PacketConn() (c net.PacketConn, err error) {
 	return net.FilePacketConn(s.f)
 }
 
-func Listen(unsetEnv bool) (files []Socket, err error) {
+func Listen() (files []Socket, err error) {
 	// TODO: named sockets
 
 	envPID := os.Getenv("LISTEN_PID")
 	envFDs := os.Getenv("LISTEN_FDS")
 	//envFDNames := os.Getenv("LISTEN_FDNAMES")
-	if unsetEnv {
-		os.Unsetenv("LISTEN_PID")
-		os.Unsetenv("LISTEN_FDS")
-		//os.Unsetenv("LISTEN_FDNAMES")
-	}
+
+	// In Go programs there should be no need to unset the environment variables
+	// as there is no API for forking.
+	// if unsetEnv {
+	// 	os.Unsetenv("LISTEN_PID")
+	// 	os.Unsetenv("LISTEN_FDS")
+	// 	os.Unsetenv("LISTEN_FDNAMES")
+	// }
 
 	if len(envPID) == 0 {
 		err = errors.New("listen enviornment not set")
