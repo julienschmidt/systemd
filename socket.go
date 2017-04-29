@@ -29,6 +29,13 @@ func (s *Socket) Fd() uintptr {
 	return s.f.Fd()
 }
 
+// Fd returns the integer Unix file descriptor referencing the open socket.
+// The file descriptor is valid only until s.Close is called or s is garbage
+// collected.
+func (s *Socket) Fd() uintptr {
+	return s.f.Fd()
+}
+
 // Close closes the Socket, rendering it unusable for I/O.
 // It returns an error, if any.
 func (s *Socket) Close() error {
@@ -140,6 +147,9 @@ func Listen() (files []Socket, err error) {
 	return
 }
 
+// ListenWithNames is like Listen but also assigns passed names to the sockets.
+// The name can be used to identify a socket.
+// Names can be assigned in the systemd unit files.
 func ListenWithNames() (files []Socket, err error) {
 	n, err := parseEnv()
 	if n < 1 { // includes err != nil case
