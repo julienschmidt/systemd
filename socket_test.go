@@ -37,6 +37,28 @@ func prepareEnv(t *testing.T, setPID, setFDs, openFDs bool) (r, w *os.File) {
 	return
 }
 
+func prepareNames(n int) {
+	if n < 1 {
+		os.Setenv("LISTEN_FDNAMES", "")
+		return
+	}
+
+	names := ""
+	for i := 0; i < n; i++ {
+		names += ":fd" + strconv.Itoa(i+fdStart)
+	}
+	os.Setenv("LISTEN_FDNAMES", names[1:])
+}
+
+func cleanEnv(r, w *os.File) {
+	os.Unsetenv("LISTEN_PID")
+	os.Unsetenv("LISTEN_FDS")
+	os.Unsetenv("LISTEN_FDNAMES")
+
+	r.Close()
+	w.Close()
+}
+
 func checkWrite(w io.WriteCloser, r io.ReadCloser) (err error) {
 	testStr := "This test is totally sufficient\n"
 
@@ -65,6 +87,8 @@ func checkWrite(w io.WriteCloser, r io.ReadCloser) (err error) {
 
 func TestListen(t *testing.T) {
 	r, w := prepareEnv(t, true, true, true)
+	defer cleanEnv(r, w)
+
 	sockets, err := Listen()
 	if err != nil {
 		t.Fatal(err)
@@ -85,31 +109,70 @@ func TestListen(t *testing.T) {
 
 func TestListenNoPID(t *testing.T) {
 	r, w := prepareEnv(t, false, true, true)
-	_, err := Listen()
-	r.Close()
-	w.Close()
+	defer cleanEnv(r, w)
 
-	if err == nil {
+	if _, err := Listen(); err == nil {
 		t.Fatal("did not fail when PID was not set")
 	}
 }
 
 func TestListenNoFDs(t *testing.T) {
 	r, w := prepareEnv(t, true, false, true)
-	_, err := Listen()
-	r.Close()
-	w.Close()
+	defer cleanEnv(r, w)
 
-	if err == nil {
+	if _, err := Listen(); err == nil {
 		t.Fatal("did not fail when FDs were not set")
 	}
 }
 
 func TestListenNoOpen(t *testing.T) {
-	_, _ = prepareEnv(t, true, true, false)
-	sockets, _ := Listen()
+	r, w := prepareEnv(t, true, true, false)
+	defer cleanEnv(r, w)
 
+	sockets, _ := Listen()
 	if checkWrite(sockets[1].File(), sockets[0].File()) == nil {
 		t.Fatal("did not fail when FDs were not opened")
+	}
+}
+
+func TestListenWithNames(t *testing.T) {
+	r, w := prepareEnv(t, true, true, true)
+	prepareNames(2)
+	defer cleanEnv(r, w)
+
+	sockets, err := ListenWithNames()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if len(sockets) != 2 {
+		t.Fatalf("unexpected number of sockets: expected 2, got %d", len(sockets))
+	}
+
+	if r.Fd() != sockets[0].Fd() || w.Fd() != sockets[1].Fd() {
+		t.Fatalf("file descriptor mismatch: %d=%d, %d=%d", r.Fd(), sockets[0].Fd(), w.Fd(), sockets[1].Fd())
+	}
+
+	if err = checkWrite(sockets[1].File(), sockets[0].File()); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestListenWithNamesMismatch(t *testing.T) {
+	r, w := prepareEnv(t, true, true, true)
+	defer cleanEnv(r, w)
+
+	if _, err := ListenWithNames(); err == nil {
+		t.Fatal("no error when no names were set")
+	}
+
+	prepareNames(1)
+	if _, err := ListenWithNames(); err == nil {
+		t.Fatal("no error when too few names were set")
+	}
+
+	prepareNames(3)
+	if _, err := ListenWithNames(); err == nil {
+		t.Fatal("no error when too many names were set")
 	}
 }

@@ -10,6 +10,7 @@ import (
 	"net"
 	"os"
 	"strconv"
+	"strings"
 	"syscall"
 )
 
@@ -64,24 +65,16 @@ func (s *Socket) PacketConn() (c net.PacketConn, err error) {
 	return net.FilePacketConn(s.f)
 }
 
-// Listen returns sockets passed by the service manager as part of the
-// socket-based activation logic.
-// If no sockets have been received, an empty slice is returned.
-// If more than one socket is received, they will be passed in the same order as
-// configured in the systemd socket unit file.
-func Listen() (files []Socket, err error) {
-	// TODO: named sockets
-
+func parseEnv() (n int, err error) {
 	envPID := os.Getenv("LISTEN_PID")
 	envFDs := os.Getenv("LISTEN_FDS")
-	//envFDNames := os.Getenv("LISTEN_FDNAMES")
 
 	// In Go programs there should be no need to unset the environment variables
 	// as there is no API for forking.
 	// if unsetEnv {
-	// 	os.Unsetenv("LISTEN_PID")
-	// 	os.Unsetenv("LISTEN_FDS")
-	// 	os.Unsetenv("LISTEN_FDNAMES")
+	//  os.Unsetenv("LISTEN_PID")
+	//  os.Unsetenv("LISTEN_FDS")
+	//  os.Unsetenv("LISTEN_FDNAMES")
 	// }
 
 	if len(envPID) == 0 {
@@ -100,21 +93,72 @@ func Listen() (files []Socket, err error) {
 		return
 	}
 
-	n, err := strconv.Atoi(envFDs)
-	if n < 1 {
-		if err != nil {
-			err = errors.New("invalid number of file descriptors")
-		}
+	n, err = strconv.Atoi(envFDs)
+	if err != nil {
+		err = errors.New("invalid number of file descriptors")
+	}
+	return
+}
+
+func parseNames(n int) (names []string, err error) {
+	envNames := os.Getenv("LISTEN_FDNAMES")
+	if len(envNames) < 1 {
+		return nil, errors.New("socket names not set")
+	}
+
+	names = strings.SplitN(envNames, ":", n)
+	if len(names) != n || strings.IndexByte(names[n-1], ':') > 0 {
+		return nil, errors.New("mismatch between number of socket and socket names:" +
+			" expected " + strconv.Itoa(n) +
+			", got " + strconv.Itoa(strings.Count(envNames, ":")+1))
+	}
+	return
+}
+
+// Listen returns sockets passed by the service manager as part of the
+// socket-based activation logic.
+// If no sockets have been received, an empty slice is returned.
+// If more than one socket is received, they will be passed in the same order as
+// configured in the systemd socket unit file.
+func Listen() (files []Socket, err error) {
+	n, err := parseEnv()
+	if n < 1 { // includes err != nil case
 		return
 	}
 
 	files = make([]Socket, n)
-	for fd := fdStart; fd < fdStart+n; fd++ {
+	for i := 0; i < n; i++ {
+		fd := fdStart + i
+
 		// set the close-on-exec flag for the file descriptor
 		syscall.CloseOnExec(fd)
 
-		// TODO: name, e.g. /proc/self/fd/3
-		files[fd-fdStart] = Socket{os.NewFile(uintptr(fd), "")}
+		files[i] = Socket{
+			os.NewFile(uintptr(fd), "/proc/self/fd/"+strconv.Itoa(fd)),
+		}
+	}
+	return
+}
+
+func ListenWithNames() (files []Socket, err error) {
+	n, err := parseEnv()
+	if n < 1 { // includes err != nil case
+		return
+	}
+
+	names, err := parseNames(n)
+	if err != nil {
+		return
+	}
+
+	files = make([]Socket, n)
+	for i := 0; i < n; i++ {
+		fd := fdStart + i
+
+		// set the close-on-exec flag for the file descriptor
+		syscall.CloseOnExec(fd)
+
+		files[i] = Socket{os.NewFile(uintptr(fd), names[i])}
 	}
 	return
 }
