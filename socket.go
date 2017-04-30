@@ -91,7 +91,7 @@ func parseEnv() (n int, err error) {
 	// }
 
 	if len(envPID) == 0 {
-		err = errors.New("listen enviornment not set")
+		err = errors.New("listen environment not set")
 		return
 	}
 
