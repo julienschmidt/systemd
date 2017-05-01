@@ -4,4 +4,4 @@ This package provides native systemd integration for Go programs.
 
 ## Socket Activation
 
-systemd socket activation is enabled by [systemd.Listen](https://godoc.org/github.com/julienschmidt/systemd#Listen) and [systemd.ListenWithNames](https://godoc.org/github.com/julienschmidt/systemd#ListenWithNames).
+systemd socket activation (or any other compatible socket passing system passing sockets via `LISTEN_FDS` enviornment variables) is enabled by [systemd.Listen](https://godoc.org/github.com/julienschmidt/systemd#Listen) and [systemd.ListenWithNames](https://godoc.org/github.com/julienschmidt/systemd#ListenWithNames).
