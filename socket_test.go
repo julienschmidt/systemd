@@ -11,6 +11,7 @@ import (
 	"net"
 	"os"
 	"strconv"
+	"strings"
 	"testing"
 )
 
@@ -156,9 +157,9 @@ func TestListenNoOpen(t *testing.T) {
 	}
 }
 
-func TestListenWithNames(t *testing.T) {
+func checkListenWithNames(t *testing.T, names []string) {
 	r, w := prepareEnv(t, true, true, true)
-	prepareNames(2)
+	os.Setenv("LISTEN_FDNAMES", strings.Join(names, ":"))
 	defer cleanEnv(r, w)
 
 	sockets, err := ListenWithNames()
@@ -166,16 +167,14 @@ func TestListenWithNames(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if len(sockets) != 2 {
-		t.Fatalf("unexpected number of sockets: expected 2, got %d", len(sockets))
+	if len(sockets) != len(names) {
+		t.Fatalf("unexpected number of sockets: expected %d, got %d", len(names), len(sockets))
 	}
 
-	if sockets[0].Name() != "fd3" {
-		t.Fatalf("unexpected socket name: expected fd3, got %s", sockets[0].Name())
-	}
-
-	if sockets[1].Name() != "fd4" {
-		t.Fatalf("unexpected socket name: expected fd4, got %s", sockets[1].Name())
+	for i, name := range names {
+		if sockets[i].Name() != name {
+			t.Fatalf("unexpected socket name: expected %s, got %s", name, sockets[i].Name())
+		}
 	}
 
 	if r.Fd() != sockets[0].Fd() || w.Fd() != sockets[1].Fd() {
@@ -187,8 +186,17 @@ func TestListenWithNames(t *testing.T) {
 	}
 }
 
+func TestListenWithNames(t *testing.T) {
+	checkListenWithNames(t, []string{"fd3", "fd4"})
+}
+
+func TestListenWithNamesEmpty(t *testing.T) {
+	checkListenWithNames(t, []string{"", ""})
+}
+
 func TestListenWithNamesNoPID(t *testing.T) {
 	r, w := prepareEnv(t, false, true, true)
+	prepareNames(2)
 	defer cleanEnv(r, w)
 
 	if _, err := ListenWithNames(); err == nil {
@@ -198,6 +206,7 @@ func TestListenWithNamesNoPID(t *testing.T) {
 
 func TestListenWithNamesInvalidPID(t *testing.T) {
 	r, w := prepareEnv(t, true, true, true)
+	prepareNames(2)
 	os.Setenv("LISTEN_PID", "Gordon")
 	defer cleanEnv(r, w)
 
@@ -208,6 +217,7 @@ func TestListenWithNamesInvalidPID(t *testing.T) {
 
 func TestListenWithNamesWrongPID(t *testing.T) {
 	r, w := prepareEnv(t, true, true, true)
+	prepareNames(2)
 	os.Setenv("LISTEN_PID", "1")
 	defer cleanEnv(r, w)
 
@@ -217,6 +227,7 @@ func TestListenWithNamesWrongPID(t *testing.T) {
 }
 
 func TestListenWithNamesNoFDs(t *testing.T) {
+	prepareNames(2)
 	r, w := prepareEnv(t, true, false, true)
 	defer cleanEnv(r, w)
 
@@ -229,6 +240,11 @@ func TestListenWithNamesMismatch(t *testing.T) {
 	r, w := prepareEnv(t, true, true, true)
 	defer cleanEnv(r, w)
 
+	if _, err := ListenWithNames(); err == nil {
+		t.Fatal("no error when no names were set")
+	}
+
+	prepareNames(0)
 	if _, err := ListenWithNames(); err == nil {
 		t.Fatal("no error when no names were set")
 	}

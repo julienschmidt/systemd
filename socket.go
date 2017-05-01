@@ -120,7 +120,7 @@ func parseNames(n int) (names []string, err error) {
 	}
 
 	names = strings.SplitN(envNames, ":", n)
-	if len(names) != n || strings.IndexByte(names[n-1], ':') > 0 {
+	if len(names) != n || strings.IndexByte(names[n-1], ':') >= 0 {
 		return nil, errors.New("mismatch between number of socket and socket names:" +
 			" expected " + strconv.Itoa(n) +
 			", got " + strconv.Itoa(strings.Count(envNames, ":")+1))
