@@ -7,7 +7,6 @@ package systemd
 import (
 	"errors"
 	"io"
-	"io/ioutil"
 	"net"
 	"os"
 	"strconv"
@@ -15,7 +14,18 @@ import (
 	"testing"
 )
 
-func prepareEnv(t *testing.T, setPID, setFDs, openFDs bool) (r, w *os.File) {
+// https://github.com/golang/go/commit/c05b06a12d005f50e4776095a60d6bd9c2c91fac
+// causes file descriptors to remain open after the first file I/O.
+// We therefore can not rely on only 2 open file descriptors in our tests and
+// have to use a workaround and open 2 file descriptors right at init and keep
+// reusing them.
+var r, w *os.File
+
+func init() {
+	r, w, _ = os.Pipe()
+}
+
+func prepareEnv(t *testing.T, setPID, setFDs, useFDs bool) {
 	os.Clearenv()
 	if setPID {
 		os.Setenv("LISTEN_PID", strconv.Itoa(os.Getpid()))
@@ -25,9 +35,7 @@ func prepareEnv(t *testing.T, setPID, setFDs, openFDs bool) (r, w *os.File) {
 		os.Setenv("LISTEN_FDS", "2")
 	}
 
-	if openFDs {
-		// adds 2 more FDs
-		r, w, _ = os.Pipe()
+	if useFDs {
 		if rfd := r.Fd(); rfd != fdStart {
 			cleanEnv(r, w)
 			t.Fatalf("unexpected fd: expected %d, got %d", fdStart, rfd)
@@ -58,31 +66,22 @@ func cleanEnv(r, w *os.File) {
 	os.Unsetenv("LISTEN_PID")
 	os.Unsetenv("LISTEN_FDS")
 	os.Unsetenv("LISTEN_FDNAMES")
-
-	r.Close()
-	w.Close()
 }
 
-func checkWrite(w io.WriteCloser, r io.ReadCloser) (err error) {
+func checkWrite(w io.Writer, r io.Reader) (err error) {
 	testStr := "This test is totally sufficient\n"
 
 	if _, err = w.Write([]byte(testStr)); err != nil {
 		return
 	}
-	if err = w.Close(); err != nil {
-		return
-	}
 
-	out, err := ioutil.ReadAll(r)
+	buf := make([]byte, 1024)
+	n, err := io.ReadAtLeast(r, buf, len(testStr))
 	if err != nil {
 		return
 	}
 
-	if err = r.Close(); err != nil {
-		return
-	}
-
-	if string(out) != testStr {
+	if n != len(testStr) || string(buf[:n]) != testStr {
 		return errors.New("string mismatch")
 	}
 
@@ -90,7 +89,7 @@ func checkWrite(w io.WriteCloser, r io.ReadCloser) (err error) {
 }
 
 func TestListen(t *testing.T) {
-	r, w := prepareEnv(t, true, true, true)
+	prepareEnv(t, true, true, true)
 	defer cleanEnv(r, w)
 
 	sockets, err := Listen()
@@ -112,7 +111,7 @@ func TestListen(t *testing.T) {
 }
 
 func TestListenNoPID(t *testing.T) {
-	r, w := prepareEnv(t, false, true, true)
+	prepareEnv(t, false, true, true)
 	defer cleanEnv(r, w)
 
 	if _, err := Listen(); err == nil {
@@ -121,7 +120,7 @@ func TestListenNoPID(t *testing.T) {
 }
 
 func TestListenInvalidPID(t *testing.T) {
-	r, w := prepareEnv(t, true, true, true)
+	prepareEnv(t, true, true, true)
 	os.Setenv("LISTEN_PID", "Gordon")
 	defer cleanEnv(r, w)
 
@@ -131,7 +130,7 @@ func TestListenInvalidPID(t *testing.T) {
 }
 
 func TestListenWrongPID(t *testing.T) {
-	r, w := prepareEnv(t, true, true, true)
+	prepareEnv(t, true, true, true)
 	os.Setenv("LISTEN_PID", "1")
 	defer cleanEnv(r, w)
 
@@ -141,7 +140,7 @@ func TestListenWrongPID(t *testing.T) {
 }
 
 func TestListenNoFDs(t *testing.T) {
-	r, w := prepareEnv(t, true, false, true)
+	prepareEnv(t, true, false, true)
 	defer cleanEnv(r, w)
 
 	if _, err := Listen(); err == nil {
@@ -149,18 +148,8 @@ func TestListenNoFDs(t *testing.T) {
 	}
 }
 
-func TestListenNoOpen(t *testing.T) {
-	r, w := prepareEnv(t, true, true, false)
-	defer cleanEnv(r, w)
-
-	sockets, _ := Listen()
-	if checkWrite(sockets[1].File(), sockets[0].File()) == nil {
-		t.Fatal("did not fail when FDs were not opened")
-	}
-}
-
 func checkListenWithNames(t *testing.T, names []string) {
-	r, w := prepareEnv(t, true, true, true)
+	prepareEnv(t, true, true, true)
 	os.Setenv("LISTEN_FDNAMES", strings.Join(names, ":"))
 	defer cleanEnv(r, w)
 
@@ -197,7 +186,7 @@ func TestListenWithNamesEmpty(t *testing.T) {
 }
 
 func TestListenWithNamesNoPID(t *testing.T) {
-	r, w := prepareEnv(t, false, true, true)
+	prepareEnv(t, false, true, true)
 	prepareNames(2)
 	defer cleanEnv(r, w)
 
@@ -207,7 +196,7 @@ func TestListenWithNamesNoPID(t *testing.T) {
 }
 
 func TestListenWithNamesInvalidPID(t *testing.T) {
-	r, w := prepareEnv(t, true, true, true)
+	prepareEnv(t, true, true, true)
 	prepareNames(2)
 	os.Setenv("LISTEN_PID", "Gordon")
 	defer cleanEnv(r, w)
@@ -218,7 +207,7 @@ func TestListenWithNamesInvalidPID(t *testing.T) {
 }
 
 func TestListenWithNamesWrongPID(t *testing.T) {
-	r, w := prepareEnv(t, true, true, true)
+	prepareEnv(t, true, true, true)
 	prepareNames(2)
 	os.Setenv("LISTEN_PID", "1")
 	defer cleanEnv(r, w)
@@ -229,7 +218,7 @@ func TestListenWithNamesWrongPID(t *testing.T) {
 }
 
 func TestListenWithNamesNoFDs(t *testing.T) {
-	r, w := prepareEnv(t, true, false, true)
+	prepareEnv(t, true, false, true)
 	prepareNames(2)
 	defer cleanEnv(r, w)
 
@@ -239,7 +228,7 @@ func TestListenWithNamesNoFDs(t *testing.T) {
 }
 
 func TestListenWithNamesMismatch(t *testing.T) {
-	r, w := prepareEnv(t, true, true, true)
+	prepareEnv(t, true, true, true)
 	defer cleanEnv(r, w)
 
 	if _, err := ListenWithNames(); err == nil {
@@ -263,7 +252,7 @@ func TestListenWithNamesMismatch(t *testing.T) {
 }
 
 func TestSocket(t *testing.T) {
-	r, w := prepareEnv(t, false, false, true)
+	prepareEnv(t, false, false, true)
 	defer cleanEnv(r, w)
 
 	s := Socket{w}
