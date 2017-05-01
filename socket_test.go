@@ -227,8 +227,8 @@ func TestListenWithNamesWrongPID(t *testing.T) {
 }
 
 func TestListenWithNamesNoFDs(t *testing.T) {
-	prepareNames(2)
 	r, w := prepareEnv(t, true, false, true)
+	prepareNames(2)
 	defer cleanEnv(r, w)
 
 	if _, err := ListenWithNames(); err == nil {
