@@ -29,9 +29,11 @@ func prepareEnv(t *testing.T, setPID, setFDs, openFDs bool) (r, w *os.File) {
 		// adds 2 more FDs
 		r, w, _ = os.Pipe()
 		if rfd := r.Fd(); rfd != fdStart {
+			cleanEnv(r, w)
 			t.Fatalf("unexpected fd: expected %d, got %d", fdStart, rfd)
 		}
 		if wfd := w.Fd(); wfd != fdStart+1 {
+			cleanEnv(r, w)
 			t.Fatalf("unexpected fd: expected %d, got %d", fdStart, wfd)
 		}
 	}
